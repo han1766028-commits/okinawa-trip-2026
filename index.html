@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Group Travel Planner - Okinawa Edition</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Nunito"', '"Zen Maru Gothic"', 'ui-rounded', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        bg: {
+                            DEFAULT: '#F7F4EB',
+                            paper: '#FFFDF5',
+                        },
+                        primary: {
+                            DEFAULT: '#4ECDC4',
+                            dark: '#369B94',
+                            light: '#A0E8E3',
+                        },
+                        secondary: {
+                            DEFAULT: '#FF6B6B',
+                            dark: '#C44D4D',
+                        },
+                        accent: {
+                            red: '#FF847C',
+                            blue: '#45B7D1',
+                            yellow: '#FFE66D',
+                        },
+                        text: {
+                            main: '#4A4646',
+                            muted: '#8C8888',
+                            light: '#D1CDC7',
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '4px 4px 0px 0px #D6E4E5',
+                        'soft-sm': '2px 2px 0px 0px #D6E4E5',
+                        'soft-lg': '6px 6px 0px 0px #C1D3D4',
+                        'nav': '0px -4px 10px rgba(0,0,0,0.05)',
+                        'deep': '4px 4px 0px 0px rgba(0,0,0,0.1)',
+                    },
+                    borderRadius: {
+                        'xl': '1rem',
+                        '2xl': '1.5rem',
+                        '3xl': '2rem',
+                    },
+                    animation: {
+                        'bounce-slight': 'bounce-slight 0.3s infinite alternate',
+                        'fade-in': 'fadeIn 0.3s ease-out',
+                    },
+                    keyframes: {
+                        'bounce-slight': {
+                            '0%': { transform: 'translateY(0)' },
+                            '100%': { transform: 'translateY(-3px)' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #F7F4EB;
+            background-image: radial-gradient(#D6E4E5 2px, transparent 2px);
+            background-size: 24px 24px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Mock Data ---
+        const MEMBERS = [
+            { id: 'u1', name: '我', color: '#4ECDC4' },
+        ];
+        const MEMBERS_MAP = MEMBERS.reduce((acc, m) => ({ ...acc, [m.id]: m }), {});
+
+        // --- UI Components ---
+        const Button = ({ children, className = '', variant = 'primary', size = 'md', isLoading = false, fullWidth = false, onClick, type="button", disabled }) => {
+            const baseStyles = "inline-flex items-center justify-center font-bold rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 focus:outline-none";
+            const sizeStyles = { sm: "px-3 py-1.5 text-xs", md: "px-5 py-2.5 text-sm", lg: "px-6 py-3.5 text-base" };
+            const variantStyles = {
+                primary: "bg-primary text-white shadow-soft-sm hover:bg-primary-dark hover:shadow-none translate-y-0 hover:translate-y-[2px]",
+                secondary: "bg-secondary text-white shadow-soft-sm hover:bg-secondary-dark hover:shadow-none translate-y-0 hover:translate-y-[2px]",
+                accent: "bg-accent-yellow text-text-main shadow-soft-sm hover:bg-yellow-300 hover:shadow-none",
+                outline: "bg-transparent border-2 border-primary text-primary hover:bg-primary/10",
+                ghost: "bg-transparent text-text-muted hover:bg-gray-100 hover:text-text-main",
+                danger: "bg-red-100 text-red-500 hover:bg-red-200",
+            };
+            return <button type={type} className={`${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${fullWidth ? 'w-full' : ''} ${className}`} disabled={isLoading || disabled} onClick={onClick}>{isLoading ? <i className="fas fa-spinner fa-spin mr-2"></i> : children}</button>;
+        };
+
+        const Card = ({ children, className = '', variant = 'default', padding = 'md', clickable = false, onClick }) => {
+            const baseStyles = "bg-white rounded-2xl transition-all duration-300 relative overflow-hidden";
+            const variantStyles = { default: "shadow-soft border-2 border-transparent", flat: "shadow-none bg-bg-paper border border-gray-100", outlined: "shadow-none border-2 border-primary/20 border-dashed bg-white/50" };
+            const paddingStyles = { none: "p-0", sm: "p-3", md: "p-5", lg: "p-8" };
+            const interactiveStyles = clickable ? "cursor-pointer active:scale-[0.98] hover:-translate-y-1 hover:shadow-soft-lg" : "";
+            return (
+                <div className={`${baseStyles} ${variantStyles[variant]} ${paddingStyles[padding]} ${interactiveStyles} ${className}`} onClick={clickable ? onClick : undefined}>
+                    {variant === 'default' && <div className="absolute top-0 right-0 p-2 opacity-10 pointer-events-none"><div className="w-16 h-16 rounded-full bg-primary -mr-8 -mt-8"></div></div>}
+                    <div className="relative z-10">{children}</div>
+                </div>
+            );
+        };
+
+        const Modal = ({ isOpen, onClose, title, children }) => {
+            useEffect(() => { document.body.style.overflow = isOpen ? 'hidden' : 'unset'; return () => { document.body.style.overflow = 'unset'; }; }, [isOpen]);
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={onClose} />
+                    <div className="relative w-full max-w-md bg-white rounded-3xl shadow-soft-lg transform transition-all animate-fade-in overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-bg-paper">
+                            <h3 className="text-lg font-bold text-text-main">{title}</h3>
+                            <button onClick={onClose} className="w-8 h-8 rounded-full bg-gray-100 text-text-muted hover:bg-accent-red hover:text-white transition-colors flex items-center justify-center"><i className="fas fa-times"></i></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto">{children}</div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Input = ({ label, error, className = '', textarea = false, ...props }) => {
+            const baseStyles = "w-full bg-gray-50 border-2 border-transparent focus:bg-white focus:border-primary/50 focus:ring-4 focus:ring-primary/10 rounded-xl px-4 py-3 transition-all outline-none text-text-main placeholder-text-light font-medium";
+            return (
+                <div className="space-y-1">
+                    {label && <label className="block text-sm font-bold text-text-muted ml-1">{label}</label>}
+                    {textarea ? <textarea className={`${baseStyles} min-h-[100px] resize-none ${className}`} {...props} /> : <input className={`${baseStyles} ${className}`} {...props} />}
+                    {error && <p className="text-xs text-accent-red font-bold ml-1 animate-pulse">{error}</p>}
+                </div>
+            );
+        };
+
+        // --- Feature: Schedule ---
+        const SchedulePage = () => {
+            const [selectedDate, setSelectedDate] = useState('2026-03-28');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            
+            // Dates from 2026/3/28 to 2026/4/4
+            const dates = ['2026-03-28', '2026-03-29', '2026-03-30', '2026-03-31', '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04'];
+
+            // 倒數計時邏輯 (Target: 2026-03-28)
+            const targetDate = new Date('2026-03-28T00:00:00');
+            const today = new Date();
+            // 歸零時間部分，只比較日期
+            today.setHours(0, 0, 0, 0);
+            targetDate.setHours(0, 0, 0, 0);
+            
+            const diffTime = targetDate - today;
+            const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            const [events, setEvents] = useState([
+                 { id: '1-1', date: '2026-03-28', time: '13:30', title: '泰國亞洲航空起飛', type: 'transport', location: '桃園機場', notes: '⚠️ 請提早 2.5 小時抵達機場。15:55 抵達那霸' },
+                 { id: '1-new', date: '2026-03-28', time: '17:00', title: 'Bic Camera (空港門市)', type: 'shopping', location: '那霸機場', notes: '購買10000mah行動電源' },
+                 { id: '1-2', date: '2026-03-28', time: '18:00', title: 'OTS 租車', type: 'transport', location: 'OTS', notes: '需出示駕照譯本' },
+                 { id: '1-3', date: '2026-03-28', time: '19:00', title: '暖暮拉麵', type: 'food', location: '名護店' },
+                 { id: '1-4', date: '2026-03-28', time: '20:00', title: 'Check-in Karry CONDO', type: 'stay', location: 'Karry CONDO CHURAUMI' },
+
+                 { id: '2-1', date: '2026-03-29', time: '09:30', title: 'Cafe CAHAYA BULAN', type: 'food', location: 'Cafe CAHAYA BULAN' },
+                 { id: '2-2', date: '2026-03-29', time: '10:30', title: '今歸仁城遺跡', type: 'spot', location: '今歸仁城' },
+                 { id: '2-3', date: '2026-03-29', time: '12:00', title: '今歸仁酒造所', type: 'shopping', location: '販賣店', notes: '買泡盛優格酒' },
+                 { id: '2-4', date: '2026-03-29', time: '13:00', title: 'TAMAYA 蝦子餐', type: 'food', location: 'Kurumaebi Kitchen TAMAYA' },
+                 { id: '2-5', date: '2026-03-29', time: '14:30', title: 'Gelateria Papa', type: 'food', location: 'Gelateria Papa', notes: '冰淇淋' },
+                 { id: '2-6', date: '2026-03-29', time: '15:30', title: 'Shinmei Coffee', type: 'food', location: '今歸仁村', notes: '現刨生黑糖拿鐵' },
+                 { id: '2-7', date: '2026-03-29', time: '16:00', title: '為又公園', type: 'spot', location: '為又公園' },
+                 { id: '2-8', date: '2026-03-29', time: '18:00', title: '百年古家', type: 'food', location: '大家 Ufuya', notes: '晚餐' },
+                 { id: '2-9', date: '2026-03-29', time: '19:30', title: 'MaxValu Nago', type: 'shopping', location: 'MaxValu', notes: '買伴手禮' },
+                 { id: '2-10', date: '2026-03-29', time: '21:00', title: '返回住宿', type: 'stay', location: 'Karry CONDO CHURAUMI' },
+
+                 { id: '3-1', date: '2026-03-30', time: '09:30', title: 'CAMEL SANDWICH', type: 'food', location: 'CAMEL SANDWICH & SMOOTHIE', notes: '早餐' },
+                 { id: '3-2', date: '2026-03-30', time: '10:30', title: '元氣村', type: 'spot', location: '元氣村', notes: '海豚共游' },
+                 { id: '3-3', date: '2026-03-30', time: '11:30', title: '回住宿換衣服', type: 'stay', location: 'Karry CONDO' },
+                 { id: '3-4', date: '2026-03-30', time: '13:00', title: '燒肉本部牧場', type: 'food', location: '燒肉本部牧場', notes: '午餐' },
+                 { id: '3-5', date: '2026-03-30', time: '14:30', title: '瀨底島玻璃船', type: 'spot', location: '瀨底島', notes: '或玩水' },
+                 { id: '3-6', date: '2026-03-30', time: '17:00', title: '花人逢', type: 'food', location: '花人逢', notes: '晚餐' },
+                 { id: '3-7', date: '2026-03-30', time: '20:00', title: '返回住宿', type: 'stay', location: 'Karry CONDO CHURAUMI' },
+
+                 { id: '4-1', date: '2026-03-31', time: '09:30', title: 'MOKULELE', type: 'food', location: 'MOKULELE', notes: '早餐' },
+                 { id: '4-2', date: '2026-03-31', time: '11:00', title: 'Yabu River Park', type: 'spot', location: 'Rainbow Park' },
+                 { id: '4-3', date: '2026-03-31', time: '12:30', title: '潛水員牛排', type: 'food', location: 'Jumbo Steak Han\'s' },
+                 { id: '4-4', date: '2026-03-31', time: '14:00', title: '島甜甜圈', type: 'shopping', location: '島甜甜圈' },
+                 { id: '4-5', date: '2026-03-31', time: '16:00', title: '逛美國村', type: 'spot', location: '美國村' },
+                 { id: '4-6', date: '2026-03-31', time: '19:00', title: 'Check-in Aqua Resort', type: 'stay', location: 'Aqua Resort in Chatan' },
+
+                 { id: '5-1', date: '2026-04-01', time: '09:30', title: 'Hanon', type: 'food', location: 'Hanon', notes: '早餐' },
+                 { id: '5-2', date: '2026-04-01', time: '10:30', title: 'Parco City', type: 'shopping', location: 'Parco City', notes: '10:00-22:00' },
+                 { id: '5-3', date: '2026-04-01', time: '13:00', title: '敘敘苑燒肉', type: 'food', location: 'Parco City', notes: '午餐' },
+                 { id: '5-4', date: '2026-04-01', time: '18:00', title: '美國村晚餐', type: 'food', location: '美國村' },
+                 { id: '5-5', date: '2026-04-01', time: '20:30', title: '返回住宿', type: 'stay', location: 'Aqua Resort in Chatan' },
+
+                 { id: '6-1', date: '2026-04-02', time: '09:00', title: 'THE CALIF KITCHEN', type: 'food', location: 'THE CALIF KITCHEN', notes: '早餐' },
+                 { id: '6-2', date: '2026-04-02', time: '12:00', title: '摸貓貓', type: 'spot', location: '奧武島', notes: '準備肉泥' },
+                 { id: '6-3', date: '2026-04-02', time: '13:00', title: '奧武島海產物食堂', type: 'food', location: '奧武島', notes: '午餐' },
+                 { id: '6-4', date: '2026-04-02', time: '15:00', title: 'GELATOPUDDINGCAFE', type: 'food', location: 'GELATOPUDDINGCAFE', notes: '買布丁' },
+                 { id: '6-5', date: '2026-04-02', time: '16:00', title: 'Tokyu Stay 寄行李/還車', type: 'transport', location: 'DFS', notes: 'DFS 異地還車' },
+                 { id: '6-6', date: '2026-04-02', time: '17:00', title: '單軌去牧志站', type: 'transport', location: '牧志站' },
+                 { id: '6-7', date: '2026-04-02', time: '18:30', title: '屋台村晚餐', type: 'food', location: '屋台村' },
+                 { id: '6-8', date: '2026-04-02', time: '20:00', title: '單軌回住宿', type: 'transport', location: 'Tokyu Stay Okinawa Naha' },
+
+                 { id: '7-1', date: '2026-04-03', time: '08:30', title: '搭計程車去 DMM', type: 'transport', location: 'DMM' },
+                 { id: '7-2', date: '2026-04-03', time: '09:00', title: 'DMM 水族館', type: 'spot', location: 'DMM', notes: '參觀/買餵食票' },
+                 { id: '7-3', date: '2026-04-03', time: '10:00', title: '貓頭鷹合影', type: 'spot', location: 'DMM', notes: '含餵食 ~11:00' },
+                 { id: '7-4', date: '2026-04-03', time: '11:30', title: '餵食水獺', type: 'spot', location: 'DMM' },
+                 { id: '7-5', date: '2026-04-03', time: '12:00', title: 'iias 商場', type: 'food', location: 'iias', notes: '午餐' },
+                 { id: '7-6', date: '2026-04-03', time: '14:00', title: '回水族館/商場瞎拚', type: 'shopping', location: 'DMM/iias' },
+                 { id: '7-7', date: '2026-04-03', time: '17:00', title: '計程車回住宿', type: 'transport', location: 'Tokyu Stay' },
+                 { id: '7-8', date: '2026-04-03', time: '18:30', title: 'Marutama 味噌飯屋', type: 'food', location: 'Marutama' },
+                 { id: '7-9', date: '2026-04-03', time: '20:00', title: '逛唐吉軻德', type: 'shopping', location: '唐吉軻德' },
+
+                 { id: '8-1', date: '2026-04-04', time: '11:55', title: '華航 返台', type: 'transport', location: '那霸機場', notes: '⚠️ 請提早 2 小時抵達機場。12:30 抵達桃園' },
+            ]);
+            
+            const currentEvents = events.filter(e => e.date === selectedDate).sort((a,b) => a.time.localeCompare(b.time));
+
+            const handleAddEvent = (newEvent) => {
+                setEvents([...events, { ...newEvent, id: Date.now().toString(), date: selectedDate }]);
+                setIsModalOpen(false);
+            };
+
+            return (
+                <div className="space-y-6 pb-24">
+                    {/* Top Info Cards Container */}
+                    <div className="flex gap-2 px-2 items-stretch">
+                        
+                        {/* Countdown Card (Mobile Optimized) */}
+                        <Card padding="sm" variant="flat" className="flex-1 bg-gradient-to-br from-teal-400 to-emerald-300 text-white shadow-md border-none min-w-0 relative overflow-hidden">
+                            {/* 裝飾背景光暈 */}
+                            <div className="absolute -right-4 -top-4 w-16 h-16 bg-white/20 rounded-full blur-xl pointer-events-none"></div>
+                            
+                            <div className="flex flex-col h-full justify-between gap-1 relative z-10">
+                                <div className="flex justify-between items-start">
+                                    <span className="text-[10px] sm:text-sm font-bold text-teal-600 bg-white/90 px-1.5 py-0.5 rounded-full whitespace-nowrap shadow-sm">8天7夜</span>
+                                    <i className="fas fa-hourglass-half text-white/70 text-base sm:text-xl"></i>
+                                </div>
+                                
+                                {daysLeft > 0 ? (
+                                    <div className="flex flex-col mt-1">
+                                        <div className="text-[10px] sm:text-sm font-bold text-teal-50 leading-none mb-0.5">距離出發</div>
+                                        <div className="flex items-baseline gap-0.5">
+                                            <span className="text-4xl sm:text-6xl font-black text-white leading-none -ml-0.5 filter drop-shadow-sm">{daysLeft}</span>
+                                            <span className="text-sm sm:text-xl font-bold text-teal-100">天</span>
+                                        </div>
+                                    </div>
+                                ) : daysLeft === 0 ? (
+                                    <div className="flex flex-col mt-1">
+                                        <div className="text-[10px] sm:text-sm font-bold text-teal-50 leading-none mb-0.5">就是今天</div>
+                                        <span className="text-2xl sm:text-4xl font-black text-white leading-none filter drop-shadow-sm">出發！</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col mt-1">
+                                        <div className="text-[10px] sm:text-sm font-bold text-teal-50 leading-none mb-0.5">旅程回顧</div>
+                                        <div className="text-sm sm:text-xl font-bold text-white leading-none">已過 {Math.abs(daysLeft)} 天</div>
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+
+                        {/* Weather Card (Mobile Optimized) */}
+                        <Card padding="sm" variant="flat" className="flex-1 bg-gradient-to-br from-sky-300 to-sky-100 backdrop-blur-md shadow-sm border border-white/50 min-w-0">
+                            <div className="flex flex-col h-full justify-between gap-1">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex flex-col items-center">
+                                        <i className="fas fa-sun text-3xl sm:text-5xl text-yellow-400 filter drop-shadow-sm mb-1"></i>
+                                        <span className="text-[8px] sm:text-xs font-bold text-blue-600 bg-white/60 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-sm whitespace-nowrap">
+                                            <i className="fas fa-umbrella text-[8px] sm:text-[10px]"></i>20%
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <div className="flex items-start">
+                                            <span className="text-4xl sm:text-6xl font-black text-sky-900 tracking-tighter leading-none">26</span>
+                                            <span className="text-sm sm:text-2xl font-bold text-sky-800 mt-0.5 sm:mt-1">°C</span>
+                                        </div>
+                                        <span className="text-xs sm:text-lg font-bold text-sky-800 leading-none mt-0.5">那霸</span>
+                                    </div>
+                                </div>
+                                <div className="w-full h-[1px] bg-white/40 my-1"></div>
+                                <div className="flex items-center gap-1.5 text-[10px] sm:text-sm font-bold text-sky-900">
+                                    <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white/60 flex-shrink-0 flex items-center justify-center text-orange-500 shadow-sm">
+                                        <i className="fas fa-tshirt text-[8px] sm:text-sm"></i>
+                                    </div>
+                                    <span className="truncate">短袖、墨鏡</span>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="flex gap-3 overflow-x-auto px-1 py-2">
+                        {dates.map((date, idx) => (
+                            <button
+                                key={date}
+                                onClick={() => setSelectedDate(date)}
+                                className={`flex-shrink-0 flex flex-col items-center justify-center w-14 h-20 rounded-2xl transition-all duration-300 border-2 ${selectedDate === date ? 'bg-primary text-white border-primary shadow-soft-sm -translate-y-1' : 'bg-white text-text-muted border-transparent hover:border-primary/20'}`}
+                            >
+                                <span className="text-xs font-bold opacity-80">Day {idx + 1}</span>
+                                <span className="text-xl font-extrabold font-mono">{date.split('-')[2]}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="relative min-h-[300px]">
+                        {currentEvents.length > 0 ? (
+                            currentEvents.map((event, index) => (
+                                <TimelineItem key={event.id} event={event} isLast={index === currentEvents.length - 1} />
+                            ))
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-12 text-text-muted opacity-60">
+                                <div className="text-4xl mb-2">🌊</div>
+                                <p className="font-bold">今日行程空白</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="fixed bottom-24 right-6 z-30">
+                        <Button className="rounded-full w-14 h-14 shadow-deep flex items-center justify-center animate-bounce-slight" variant="primary" onClick={() => setIsModalOpen(true)}>
+                            <i className="fas fa-plus text-xl"></i>
+                        </Button>
+                    </div>
+
+                    <AddEventModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} selectedDate={selectedDate} onAdd={handleAddEvent} />
+                </div>
+            );
+        };
+
+        const TimelineItem = ({ event, isLast }) => {
+            const config = {
+                spot: { color: 'text-accent-red', bg: 'bg-accent-red', icon: 'fa-map-marker-alt', label: '景點' },
+                food: { color: 'text-secondary', bg: 'bg-secondary', icon: 'fa-utensils', label: '美食' },
+                transport: { color: 'text-accent-blue', bg: 'bg-accent-blue', icon: 'fa-plane', label: '交通' },
+                stay: { color: 'text-purple-500', bg: 'bg-purple-500', icon: 'fa-bed', label: '住宿' },
+                shopping: { color: 'text-pink-500', bg: 'bg-pink-100', icon: 'fa-shopping-bag', label: '購物' },
+                other: { color: 'text-gray-500', bg: 'bg-gray-500', icon: 'fa-camera', label: '其他' },
+            }[event.type] || { color: 'text-gray-500', bg: 'bg-gray-500', icon: 'fa-circle', label: '其他' };
+
+            const handleNavigate = (e) => {
+                e.stopPropagation();
+                // 如果是具體地名，直接搜尋；否則搜尋標題
+                const query = event.location || event.title;
+                const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+                window.open(url, '_blank');
+            };
+
+            // 檢查是否為重要提醒 (含有"請提早"字樣)
+            const isUrgent = event.notes && event.notes.includes("請提早");
+
+            return (
+                <div className="relative flex gap-4">
+                    <div className="flex flex-col items-center w-12 flex-shrink-0 pt-2">
+                        <span className="text-sm font-bold font-mono text-text-main">{event.time}</span>
+                        {!isLast && <div className="w-0.5 flex-grow my-2 bg-primary/20 border-l-2 border-dashed border-primary/30" />}
+                    </div>
+                    <div className="flex-grow pb-6">
+                        <Card clickable className="relative overflow-visible group">
+                            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${config.bg} rounded-l-2xl`} />
+                            <div className="pl-4 flex justify-between items-start">
+                                <div className="space-y-1 w-full">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-opacity-10 ${config.bg} ${config.color}`}>
+                                            <i className={`fas ${config.icon} mr-1`}></i> {config.label}
+                                        </span>
+                                    </div>
+                                    <h3 className="font-bold text-lg text-text-main leading-tight">{event.title}</h3>
+                                    
+                                    {/* Location & Navigation Row */}
+                                    {event.location && (
+                                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                                            <p className="text-sm text-text-muted flex items-center gap-1">
+                                                <i className="fas fa-map-marker-alt text-xs opacity-50"></i> {event.location}
+                                            </p>
+                                            <button 
+                                                onClick={handleNavigate}
+                                                className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-[10px] font-bold px-2 py-1 rounded-full transition-colors flex items-center gap-1 shadow-sm active:scale-95"
+                                            >
+                                                <i className="fas fa-location-arrow"></i> 導航
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {event.notes && (
+                                        <p className={`text-xs mt-2 p-2 rounded-lg inline-block w-full border shadow-sm transition-all
+                                            ${isUrgent 
+                                                ? 'bg-red-500 text-white border-red-600 font-bold animate-bounce' 
+                                                : 'text-text-muted bg-gray-50 border-gray-100'
+                                            }
+                                        `}>
+                                            <i className={`fas ${isUrgent ? 'fa-exclamation-triangle text-yellow-300' : 'fa-info-circle text-primary'} mr-1`}></i>
+                                            {event.notes}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                </div>
+            );
+        };
+
+        const AddEventModal = ({ isOpen, onClose, onAdd, selectedDate }) => {
+            const [type, setType] = useState('spot');
+            const [title, setTitle] = useState('');
+            const [time, setTime] = useState('09:00');
+            const [location, setLocation] = useState('');
+            const [notes, setNotes] = useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onAdd({ title, time, type, location, notes });
+                setTitle(''); setLocation(''); setNotes('');
+            };
+
+            const typeOptions = [
+                { type: 'spot', label: '景點', icon: 'fa-map-marker-alt', color: 'bg-accent-red' },
+                { type: 'food', label: '美食', icon: 'fa-utensils', color: 'bg-secondary' },
+                { type: 'transport', label: '交通', icon: 'fa-bus', color: 'bg-accent-blue' },
+                { type: 'stay', label: '住宿', icon: 'fa-bed', color: 'bg-purple-500' },
+                { type: 'shopping', label: '購物', icon: 'fa-shopping-bag', color: 'bg-pink-100' },
+            ];
+
+            return (
+                <Modal isOpen={isOpen} onClose={onClose} title={`新增 ${selectedDate} 的行程`}>
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                            {typeOptions.map((opt) => (
+                                <button key={opt.type} type="button" onClick={() => setType(opt.type)} className={`flex flex-col items-center justify-center min-w-[60px] p-2 rounded-xl transition-all ${type === opt.type ? 'bg-white shadow-soft-sm scale-100 ring-2 ring-primary ring-offset-1' : 'bg-gray-50 opacity-60 hover:opacity-100'}`}>
+                                    <div className={`w-8 h-8 rounded-full ${opt.color} text-white flex items-center justify-center mb-1`}><i className={`fas ${opt.icon}`}></i></div>
+                                    <span className="text-[10px] font-bold text-text-main">{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <Input label="行程標題" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                        <Input label="時間" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+                        <Input label="地點" value={location} onChange={(e) => setLocation(e.target.value)} />
+                        <Input label="備註" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                        <Button type="submit" fullWidth variant="primary">儲存行程</Button>
+                    </form>
+                </Modal>
+            );
+        };
+
+        // --- Feature: Bookings ---
+        const BookingsPage = () => {
+            // 預設改為顯示 'flight' (航班)，因為 'all' 已移除
+            const [activeCategory, setActiveCategory] = useState('flight');
+
+            const bookings = [
+                { 
+                    id: 'b1', 
+                    type: 'flight', 
+                    title: 'Taipei to Okinawa', 
+                    date: '2026-03-28', 
+                    provider: 'Thai AirAsia', 
+                    ref: 'FD-OKI', 
+                    flight: { 
+                        from: 'TPE', 
+                        fromCity: 'Taipei',
+                        fromTime: '13:30',
+                        to: 'OKA', 
+                        toCity: 'Okinawa',
+                        toTime: '15:55',
+                        code: 'FD230', 
+                        gate: 'B4', 
+                        seat: '11A-11D', 
+                        terminal: '1',
+                        duration: '1h 25m',
+                        aircraft: 'Airbus A320',
+                        baggage: '託運 20kg'
+                    } 
+                },
+                { id: 'c1', type: 'car', title: 'OTS Rent-a-car', time: '18:00', date: '2026-03-28', provider: 'OTS', ref: 'OTS-1234', car: { pickup: 'OTS 臨空豐崎', dropoff: 'DFS 營業所', type: 'WB Class' } },
+                { id: 'h1', type: 'stay', title: 'Karry CONDO', time: '20:00', date: '2026-03-28', provider: 'Booking.com', ref: 'KC-8821', stay: { nights: 3 } },
+                { id: 'h2', type: 'stay', title: 'Aqua Resort', time: '19:00', date: '2026-03-31', provider: 'Agoda', ref: 'AQ-9912', stay: { nights: 2 } },
+                { id: 'h3', type: 'stay', title: 'Tokyu Stay Naha', time: '20:00', date: '2026-04-02', provider: 'Tokyu', ref: 'TS-7734', stay: { nights: 2 } },
+                { id: 't1', type: 'ticket', title: 'DMM 水族館門票', time: '09:00', date: '2026-04-03', provider: 'Klook', ref: 'KLK-DMM', ticket: { qty: 3, notes: '含餵食體驗' } },
+                { 
+                    id: 'b2', 
+                    type: 'flight', 
+                    title: 'Okinawa to Taipei', 
+                    date: '2026-04-04', 
+                    provider: 'China Airlines', 
+                    ref: 'CI-121', 
+                    flight: { 
+                        from: 'OKA', 
+                        fromCity: 'Okinawa',
+                        fromTime: '11:55', 
+                        to: 'TPE', 
+                        toCity: 'Taipei',
+                        toTime: '12:30', 
+                        code: 'CI121', 
+                        gate: '32', 
+                        seat: '30D-30G', 
+                        terminal: 'I',
+                        duration: '1h 35m',
+                        aircraft: 'Airbus A321neo',
+                        baggage: '託運 23kg'
+                    } 
+                },
+            ];
+
+            const categories = [
+                // { id: 'all', label: '全部', icon: 'fa-th-large' }, // 已移除
+                { id: 'flight', label: '航班', icon: 'fa-plane' },
+                { id: 'stay', label: '住宿', icon: 'fa-bed' },
+                { id: 'car', label: '租車', icon: 'fa-car' },
+                { id: 'ticket', label: '憑證', icon: 'fa-ticket-alt' }
+            ];
+            
+            // 簡化篩選邏輯，因為不再有 'all' 選項
+            const filteredBookings = bookings.filter(b => b.type === activeCategory);
+
+            return (
+                <div className="space-y-6 pb-24">
+                    <div className="flex justify-between items-center px-2">
+                        <h2 className="text-2xl font-extrabold text-text-main">我的預訂</h2>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto px-1 pb-2 no-scrollbar">
+                        {categories.map(cat => (
+                            <button 
+                                key={cat.id} 
+                                onClick={() => setActiveCategory(cat.id)} 
+                                className={`
+                                    px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2
+                                    ${activeCategory === cat.id ? 'bg-primary text-white shadow-soft-sm' : 'bg-white text-text-muted hover:bg-gray-50'}
+                                `}
+                            >
+                                <i className={`fas ${cat.icon}`}></i>
+                                {cat.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="space-y-6">
+                        {filteredBookings.length > 0 ? ( filteredBookings.map(b => ( <TicketCard key={b.id} booking={b} /> )) ) : ( <div className="flex flex-col items-center justify-center py-12 text-text-muted opacity-60"><p className="font-bold">沒有相關預訂</p></div> )}
+                    </div>
+                </div>
+            );
+        };
+
+        const TicketCard = ({ booking }) => {
+            // New Flight Card Layout - COMPACT VERSION
+            if (booking.type === 'flight') {
+                return (
+                    <div className="relative group filter drop-shadow-md transition-transform hover:-translate-y-1">
+                        <div className="relative rounded-2xl overflow-hidden bg-white text-text-main">
+                            {/* Header Strip */}
+                            <div className="bg-blue-600 px-4 py-2 flex justify-between items-center text-white">
+                                <div className="flex items-center gap-2 text-sm font-bold">
+                                    <i className="fas fa-plane-departure"></i>
+                                    <span>Boarding Pass</span>
+                                </div>
+                                <div className="text-xs font-mono opacity-90">{booking.date}</div>
+                            </div>
+
+                            {/* Main Flight Info */}
+                            <div className="p-4">
+                                <div className="flex justify-between items-end mb-3">
+                                    <div className="text-left">
+                                        <div className="text-3xl font-black text-blue-600 leading-none">{booking.flight.from}</div>
+                                        <div className="text-xs text-text-muted font-bold mt-1">{booking.flight.fromCity}</div>
+                                        <div className="text-xl font-bold mt-1 leading-none">{booking.flight.fromTime}</div>
+                                    </div>
+                                    
+                                    <div className="flex flex-col items-center flex-1 px-2 pb-1">
+                                        <div className="text-[10px] text-text-muted mb-1">{booking.flight.duration}</div>
+                                        <div className="w-full flex items-center gap-1">
+                                            <div className="h-[1px] w-full bg-gray-300"></div>
+                                            <i className="fas fa-plane text-gray-300 text-xs transform rotate-90"></i>
+                                            <div className="h-[1px] w-full bg-gray-300"></div>
+                                        </div>
+                                        <div className="text-[10px] font-bold text-blue-600 mt-1 bg-blue-50 px-2 py-0.5 rounded-full">{booking.flight.code}</div>
+                                    </div>
+
+                                    <div className="text-right">
+                                        <div className="text-3xl font-black text-blue-600 leading-none">{booking.flight.to}</div>
+                                        <div className="text-xs text-text-muted font-bold mt-1">{booking.flight.toCity}</div>
+                                        <div className="text-xl font-bold mt-1 leading-none">{booking.flight.toTime}</div>
+                                    </div>
+                                </div>
+
+                                {/* Aircraft & Baggage Info */}
+                                <div className="flex items-center justify-center gap-4 text-xs font-bold text-text-main bg-blue-50 rounded-lg py-2 mt-2 border border-blue-100">
+                                    <div className="flex items-center gap-1">
+                                        <i className="fas fa-plane text-blue-500 text-[10px]"></i>
+                                        <span>{booking.flight.aircraft}</span>
+                                    </div>
+                                    <div className="w-[1px] h-3 bg-blue-200"></div>
+                                    <div className="flex items-center gap-1">
+                                        <i className="fas fa-suitcase text-blue-500 text-[10px]"></i>
+                                        <span>{booking.flight.baggage}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Dashed Line */}
+                            <div className="relative flex items-center justify-between">
+                                <div className="w-3 h-6 rounded-r-full bg-bg"></div>
+                                <div className="flex-1 h-0 border-t-2 border-dashed border-gray-200 mx-2"></div>
+                                <div className="w-3 h-6 rounded-l-full bg-bg"></div>
+                            </div>
+
+                            {/* Footer Info */}
+                            <div className="p-3 grid grid-cols-4 gap-1 text-center bg-gray-50">
+                                <div>
+                                    <div className="text-[10px] text-text-muted uppercase font-bold">Terminal</div>
+                                    <div className="font-bold text-text-main text-sm">{booking.flight.terminal || '-'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-text-muted uppercase font-bold">Gate</div>
+                                    <div className="font-bold text-text-main text-sm">{booking.flight.gate || '-'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-text-muted uppercase font-bold">Seat</div>
+                                    <div className="font-bold text-text-main text-sm">{booking.flight.seat || '-'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-text-muted uppercase font-bold flex items-center justify-center gap-1">
+                                        PNR
+                                    </div>
+                                    <div className="font-mono font-bold text-text-main text-sm mt-0.5">
+                                        {booking.ref}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Default Layout for other types (Stay, Car, Ticket) - COMPACT
+            const style = { stay: { bg: 'bg-gradient-to-br from-orange-400 to-orange-500', icon: 'fa-bed', label: 'Hotel Voucher' }, car: { bg: 'bg-gradient-to-br from-teal-400 to-teal-500', icon: 'fa-car', label: 'Car Rental' }, ticket: { bg: 'bg-gradient-to-br from-pink-400 to-pink-500', icon: 'fa-ticket-alt', label: 'Activity Ticket' } }[booking.type] || { bg: 'bg-gray-400', icon: 'fa-file', label: 'Document' };
+
+            return (
+                <div className="relative group filter drop-shadow-md transition-transform hover:-translate-y-1">
+                    <div className={`relative rounded-2xl overflow-hidden ${style.bg} text-white`}>
+                        <div className="p-4 pb-6 relative">
+                            <div className="flex justify-between items-start mb-2 opacity-90">
+                                <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest">
+                                    <i className={`fas ${style.icon}`}></i><span>{style.label}</span>
+                                </div>
+                                <div className="text-xs font-mono opacity-80">{booking.date}</div>
+                            </div>
+                            
+                            {booking.type === 'car' ? ( 
+                                <div>
+                                    <h3 className="text-2xl font-bold leading-tight mb-2">{booking.title}</h3>
+                                    <div className="flex items-start gap-3 opacity-90 text-sm">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] uppercase opacity-70 mb-0.5">Pick-up</span>
+                                            <span className="font-bold">{booking.car.pickup}</span>
+                                            <span className="text-xs mt-0.5">{booking.time}</span>
+                                        </div>
+                                        <div className="mt-2"><i className="fas fa-arrow-right opacity-50"></i></div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] uppercase opacity-70 mb-0.5">Drop-off</span>
+                                            <span className="font-bold">{booking.car.dropoff}</span>
+                                        </div>
+                                    </div>
+                                </div> 
+                            ) : ( 
+                                <div>
+                                    <h3 className="text-2xl font-bold leading-tight mb-1">{booking.title}</h3>
+                                    <div className="flex items-center gap-2 opacity-90 text-sm mt-1">
+                                        <i className="fas fa-map-marker-alt"></i><span>{booking.provider}</span>
+                                    </div>
+                                    {booking.ticket && 
+                                        <div className="mt-2 text-xs bg-white/20 inline-block px-2 py-1 rounded font-bold">
+                                            <i className="fas fa-user-friends mr-1"></i> {booking.ticket.qty} 人 | {booking.ticket.notes}
+                                        </div>
+                                    }
+                                </div> 
+                            )}
+                        </div>
+                        
+                        <div className="relative flex items-center justify-between"><div className="w-4 h-8 rounded-full bg-bg -ml-2"></div><div className="flex-1 h-0 border-t-2 border-dashed border-white/30 mx-2"></div><div className="w-4 h-8 rounded-full bg-bg -mr-2"></div></div>
+                        
+                        <div className="p-3 pt-2 bg-black/10">
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] uppercase opacity-70 font-bold mb-0.5">
+                                        {booking.type==='car'?'Type':'Check-in'}
+                                    </span>
+                                    <span className="font-mono font-bold text-lg">
+                                        {booking.type==='car'?booking.car.type:booking.time}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] uppercase opacity-70 font-bold mb-0.5">
+                                        {booking.type==='stay'?'Nights':'Ref'}
+                                    </span>
+                                    <span className="font-mono font-bold text-lg">
+                                        {booking.type==='stay'?booking.stay.nights:'#'}
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <span className="text-[10px] uppercase opacity-70 font-bold mb-0.5 flex items-center gap-1">
+                                        No.
+                                    </span>
+                                    <span className="font-mono font-bold text-lg">{booking.ref}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Confirmed Stamp Always Visible */}
+                    <div className="absolute bottom-4 right-4 transform rotate-[-15deg] border-2 border-white/50 rounded-full w-14 h-14 flex items-center justify-center opacity-30 pointer-events-none text-white font-bold text-[10px] uppercase tracking-widest">Confirmed</div>
+                </div>
+            );
+        };
+
+        // --- Feature: Planning (With Edit/Delete & Sub-categories) ---
+        const PlanningPage = () => {
+            const [activeTab, setActiveTab] = useState('todo'); // todo, packing, shopping
+            const [packingTab, setPackingTab] = useState('common'); // common, mom, dad, kid
+            const [items, setItems] = useState([
+                // Todo
+                { id: '1', text: '換日幣', completed: false, type: 'todo' }, // Changed to false
+                { id: '2', text: '申請駕照日文譯本', completed: false, type: 'todo' },
+                { id: '3', text: '買旅遊平安險', completed: false, type: 'todo' },
+                { id: '4', text: '確認網卡/漫遊', completed: false, type: 'todo' }, // Changed to false
+                // Packing - Common
+                { id: 'p1', text: '護照', completed: false, type: 'packing', subtype: 'common' }, // Changed to false
+                { id: 'p2', text: '網卡/WIFI機', completed: false, type: 'packing', subtype: 'common' },
+                { id: 'p3', text: '行動電源', completed: false, type: 'packing', subtype: 'common' },
+                { id: 'p4', text: '萬用轉接頭', completed: false, type: 'packing', subtype: 'common' },
+                { id: 'p5', text: '個人藥品', completed: false, type: 'packing', subtype: 'common' },
+                // Packing - Mom
+                { id: 'pm1', text: '化妝品', completed: false, type: 'packing', subtype: 'mom' },
+                { id: 'pm2', text: '保養品', completed: false, type: 'packing', subtype: 'mom' },
+                { id: 'pm3', text: '卸妝用品', completed: false, type: 'packing', subtype: 'mom' },
+                { id: 'pm4', text: '電捲棒', completed: false, type: 'packing', subtype: 'mom' },
+                // Packing - Dad
+                { id: 'pd1', text: '刮鬍刀', completed: false, type: 'packing', subtype: 'dad' },
+                { id: 'pd2', text: '攝影器材', completed: false, type: 'packing', subtype: 'dad' },
+                { id: 'pd3', text: '駕駛墨鏡', completed: false, type: 'packing', subtype: 'dad' },
+                // Packing - Kid
+                { id: 'pk1', text: '尿布', completed: false, type: 'packing', subtype: 'kid' },
+                { id: 'pk2', text: '奶粉/奶瓶', completed: false, type: 'packing', subtype: 'kid' },
+                { id: 'pk3', text: '濕紙巾', completed: false, type: 'packing', subtype: 'kid' },
+                { id: 'pk4', text: '安撫玩具', completed: false, type: 'packing', subtype: 'kid' },
+                { id: 'pk5', text: '薄外套', completed: false, type: 'packing', subtype: 'kid' },
+                { id: 'pk6', text: '兒童健保卡', completed: false, type: 'packing', subtype: 'kid' },
+                // Shopping
+                { id: '7', text: '藥妝清單', completed: false, type: 'shopping' },
+                { id: '8', text: 'Dior 零錢包', completed: false, type: 'shopping' },
+                { id: '9', text: '乙羽山麓泡盛優格酒', completed: false, type: 'shopping' },
+            ]);
+            const [newText, setNewText] = useState('');
+            const [editingItem, setEditingItem] = useState(null);
+
+            const currentItems = items.filter(i => {
+                if (i.type !== activeTab) return false;
+                if (activeTab === 'packing') return i.subtype === packingTab;
+                return true;
+            });
+
+            const progress = Math.round((currentItems.filter(i => i.completed).length / currentItems.length) * 100) || 0;
+
+            const toggle = (id) => setItems(items.map(i => i.id === id ? { ...i, completed: !i.completed } : i));
+            
+            const add = (e) => { 
+                e.preventDefault(); 
+                if(!newText.trim()) return; 
+                setItems([...items, { 
+                    id: Date.now(), 
+                    text: newText, 
+                    completed: false, 
+                    type: activeTab,
+                    subtype: activeTab === 'packing' ? packingTab : undefined
+                }]); 
+                setNewText(''); 
+            };
+            
+            const remove = (id, e) => { e.stopPropagation(); setItems(items.filter(i => i.id !== id)); };
+            const startEdit = (item, e) => { e.stopPropagation(); setEditingItem({ ...item }); };
+            const saveEdit = (e) => { e.preventDefault(); setItems(items.map(i => i.id === editingItem.id ? { ...i, text: editingItem.text } : i)); setEditingItem(null); };
+
+            // 新增：重置當前頁面所有勾選的功能
+            const uncheckAll = () => {
+                if (window.confirm('確定要清除目前清單的所有勾選狀態嗎？')) {
+                    setItems(items.map(i => {
+                        // 判斷是否屬於當前顯示的清單
+                        let isCurrent = false;
+                        if (i.type === activeTab) {
+                            if (activeTab === 'packing') {
+                                if (i.subtype === packingTab) isCurrent = true;
+                            } else {
+                                isCurrent = true;
+                            }
+                        }
+                        // 如果是當前清單項目，則取消勾選；否則維持原狀
+                        return isCurrent ? { ...i, completed: false } : i;
+                    }));
+                }
+            };
+
+            const mainTabs = [
+                { id: 'todo', label: '待辦事項', icon: 'fa-clipboard-list' },
+                { id: 'packing', label: '攜帶清單', icon: 'fa-suitcase' },
+                { id: 'shopping', label: '購物清單', icon: 'fa-shopping-bag' },
+            ];
+
+            const packingTabs = [
+                { id: 'common', label: '通用' },
+                { id: 'mom', label: '媽媽' },
+                { id: 'dad', label: '爸爸' },
+                { id: 'kid', label: '小孩' },
+            ];
+
+            return (
+                <div className="space-y-6 pb-32">
+                    <div className="px-2">
+                        <div className="flex justify-between items-end mb-2">
+                            <h2 className="text-2xl font-extrabold text-text-main">準備清單</h2>
+                            {/* 只有當目前有已完成項目時，才顯示重置按鈕 */}
+                            {currentItems.some(i => i.completed) && (
+                                <button 
+                                    onClick={uncheckAll}
+                                    className="text-xs font-bold text-text-muted hover:text-accent-red transition-colors flex items-center gap-1 bg-white/50 px-2 py-1 rounded-lg"
+                                >
+                                    <i className="fas fa-undo-alt"></i> 重置勾選
+                                </button>
+                            )}
+                        </div>
+                        <div className="bg-white rounded-full h-4 w-full shadow-inner overflow-hidden relative"><div className="absolute top-0 left-0 h-full bg-primary transition-all duration-500 rounded-full" style={{ width: `${progress}%` }}></div></div>
+                    </div>
+                    
+                    {/* Main Tabs */}
+                    <div className="flex p-1 bg-white/50 rounded-2xl mx-2">
+                        {mainTabs.map(tab => (
+                            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 py-3 rounded-xl flex flex-col items-center gap-1 transition-all ${activeTab === tab.id ? 'bg-white shadow-soft text-primary-dark font-bold' : 'text-text-muted hover:bg-white/50'}`}>
+                                <i className={`fas ${tab.icon}`}></i>
+                                <span className="text-xs">{tab.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Secondary Tabs for Packing */}
+                    {activeTab === 'packing' && (
+                        <div className="flex gap-2 px-2 overflow-x-auto no-scrollbar">
+                            {packingTabs.map(pt => (
+                                <button 
+                                    key={pt.id}
+                                    onClick={() => setPackingTab(pt.id)}
+                                    className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${packingTab === pt.id ? 'bg-primary text-white shadow-soft-sm' : 'bg-white text-text-muted border border-gray-100'}`}
+                                >
+                                    {pt.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="space-y-3">
+                        {currentItems.length > 0 ? currentItems.map(item => (
+                            <Card 
+                                key={item.id} 
+                                variant="flat" 
+                                padding="sm" 
+                                clickable={true} // 關鍵修復：加入 clickable 屬性讓 onClick 生效
+                                className={`flex items-center gap-3 group hover:bg-white ${item.completed ? 'bg-gray-50/50' : 'bg-white/50'}`} 
+                                onClick={() => toggle(item.id)}
+                            >
+                                <div className={`flex items-center justify-center w-6 h-6 rounded-lg border-2 transition-all ${item.completed ? 'bg-primary border-primary' : 'border-gray-300'}`}>
+                                    {item.completed && <i className="fas fa-check text-white text-xs"></i>}
+                                </div>
+                                <span className={`font-bold flex-1 transition-all ${item.completed ? 'text-text-muted line-through' : 'text-text-main'}`}>{item.text}</span>
+                                <div className="flex gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={(e) => startEdit(item, e)} className="p-2 hover:text-primary"><i className="fas fa-pen"></i></button>
+                                    <button onClick={(e) => remove(item.id, e)} className="p-2 hover:text-red-500"><i className="fas fa-trash"></i></button>
+                                </div>
+                            </Card>
+                        )) : (
+                            <div className="text-center py-8 text-text-muted opacity-50 text-sm">此清單目前沒有項目</div>
+                        )}
+                    </div>
+                    <div className="fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-bg via-bg to-transparent">
+                        <form onSubmit={add} className="max-w-md mx-auto relative flex gap-2 items-center">
+                            <div className="flex-grow shadow-soft-lg rounded-xl overflow-hidden"><input placeholder={`新增${activeTab==='packing' ? packingTabs.find(t=>t.id===packingTab).label : mainTabs.find(t=>t.id===activeTab).label}項目...`} className="w-full h-12 px-4 border-none focus:outline-none" value={newText} onChange={e => setNewText(e.target.value)} /></div>
+                            <Button type="submit" variant="primary" className="h-12 w-12 rounded-xl shadow-soft-lg flex-shrink-0"><i className="fas fa-plus"></i></Button>
+                        </form>
+                    </div>
+
+                    <Modal isOpen={!!editingItem} onClose={() => setEditingItem(null)} title="編輯項目">
+                        <form onSubmit={saveEdit} className="space-y-4">
+                            <Input value={editingItem?.text || ''} onChange={e => setEditingItem({...editingItem, text: e.target.value})} autoFocus />
+                            <div className="flex gap-2">
+                                <Button fullWidth variant="ghost" onClick={() => setEditingItem(null)}>取消</Button>
+                                <Button fullWidth variant="primary" type="submit">儲存</Button>
+                            </div>
+                        </form>
+                    </Modal>
+                </div>
+            );
+        };
+
+        // --- Feature: Expense (With Edit/Delete) ---
+        const ExpensePage = () => {
+            const [expenses, setExpenses] = useState([
+                { id: 'e1', title: '暖暮拉麵', amount: 3500, currency: 'JPY', category: 'food', date: '2026-03-28', time: '19:30', payerId: 'u1' },
+                { id: 'e2', title: '便利商店', amount: 1200, currency: 'JPY', category: 'food', date: '2026-03-28', time: '21:00', payerId: 'u1' },
+            ]);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [editingExpense, setEditingExpense] = useState(null); // For Edit Mode
+            const rate = 0.21;
+
+            const totalForeign = expenses.filter(e => e.currency === 'JPY').reduce((acc, cur) => acc + cur.amount, 0);
+            const totalBase = Math.round(totalForeign * rate);
+
+            const handleSave = (record) => {
+                if (editingExpense) {
+                    setExpenses(expenses.map(e => e.id === record.id ? record : e));
+                } else {
+                    setExpenses([{ ...record, id: Date.now().toString() }, ...expenses]);
+                }
+                closeModal();
+            };
+
+            const handleDelete = (id) => {
+                if(confirm('確定要刪除這筆記帳嗎？')) {
+                    setExpenses(expenses.filter(e => e.id !== id));
+                    closeModal();
+                }
+            };
+
+            const openAdd = () => { setEditingExpense(null); setIsModalOpen(true); };
+            const openEdit = (exp) => { setEditingExpense(exp); setIsModalOpen(true); };
+            const closeModal = () => { setIsModalOpen(false); setEditingExpense(null); };
+
+            return (
+                <div className="space-y-6 pb-24">
+                    <div className="flex justify-between items-center px-2">
+                        <h2 className="text-2xl font-extrabold text-text-main">共同記帳</h2>
+                        <Button variant="ghost" size="sm"><i className="fas fa-filter mr-1"></i> 篩選</Button>
+                    </div>
+                    <Card className="bg-gradient-to-br from-primary to-primary-dark text-white shadow-deep border-none relative overflow-hidden">
+                        <div className="absolute right-[-20px] top-[-20px] opacity-10"><i className="fas fa-wallet fa-6x"></i></div>
+                        <div className="relative z-10 p-2">
+                            <p className="text-primary-light text-xs font-bold uppercase tracking-widest">Total Spent</p>
+                            <h2 className="text-3xl font-extrabold flex items-baseline gap-1">
+                                <span className="text-lg opacity-80">$</span>{totalBase.toLocaleString()}
+                                <span className="text-sm font-bold opacity-60 ml-1">TWD</span>
+                            </h2>
+                            <div className="bg-black/20 rounded-xl p-3 flex items-center justify-between backdrop-blur-sm mt-3">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] opacity-70">日幣支出 (JPY)</span>
+                                    <span className="font-bold font-mono text-lg leading-none">¥ {totalForeign.toLocaleString()}</span>
+                                </div>
+                                <i className="fas fa-exchange-alt opacity-40"></i>
+                            </div>
+                        </div>
+                    </Card>
+
+                    <div className="space-y-4">
+                        {expenses.map(exp => (
+                            <div key={exp.id} onClick={() => openEdit(exp)}>
+                                <ExpenseItem record={exp} payer={MEMBERS_MAP[exp.payerId]} />
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="fixed bottom-24 right-6 z-30">
+                        <Button className="rounded-full w-14 h-14 shadow-deep flex items-center justify-center animate-bounce-slight" variant="secondary" onClick={openAdd}>
+                            <i className="fas fa-plus text-xl"></i>
+                        </Button>
+                    </div>
+                    
+                    {isModalOpen && (
+                        <AddExpenseModal 
+                            isOpen={isModalOpen} 
+                            onClose={closeModal} 
+                            onSave={handleSave} 
+                            onDelete={handleDelete}
+                            initialData={editingExpense} 
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const ExpenseItem = ({ record, payer }) => {
+            const config = {
+                food: { icon: 'fa-utensils', color: 'text-orange-500', bg: 'bg-orange-100' },
+                transport: { icon: 'fa-bus', color: 'text-blue-500', bg: 'bg-blue-100' },
+                ticket: { icon: 'fa-ticket-alt', color: 'text-purple-500', bg: 'bg-purple-100' },
+                stay: { icon: 'fa-bed', color: 'text-purple-500', bg: 'bg-purple-100' },
+                shopping: { icon: 'fa-shopping-bag', color: 'text-pink-500', bg: 'bg-pink-100' },
+            }[record.category] || { icon: 'fa-ellipsis-h', color: 'text-gray-500', bg: 'bg-gray-100' };
+
+            return (
+                <Card clickable padding="sm" className="flex items-center gap-4 hover:bg-gray-50">
+                    <div className={`w-12 h-12 rounded-2xl ${config.bg} ${config.color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                        <i className={`fas ${config.icon} text-lg`}></i>
+                    </div>
+                    <div className="flex-grow min-w-0">
+                        <h4 className="font-bold text-text-main truncate">{record.title}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-text-muted flex items-center gap-1">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: payer?.color }}></div>
+                                {payer?.name} 先付
+                            </span>
+                            <span className="text-[10px] text-text-muted opacity-60">
+                                {record.date.slice(5)} {record.time}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                        <div className="font-bold text-lg text-text-main font-mono">{record.amount.toLocaleString()}</div>
+                        <div className="text-[10px] font-bold text-text-muted text-right">{record.currency}</div>
+                    </div>
+                </Card>
+            );
+        };
+
+        const AddExpenseModal = ({ isOpen, onClose, onSave, onDelete, initialData }) => {
+            // Initial State based on Edit or New
+            const today = new Date().toISOString().split('T')[0];
+            const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+            const [amount, setAmount] = useState(initialData?.amount.toString() || '');
+            const [title, setTitle] = useState(initialData?.title || '');
+            const [currency, setCurrency] = useState(initialData?.currency || 'JPY');
+            const [category, setCategory] = useState(initialData?.category || 'food');
+            const [date, setDate] = useState(initialData?.date || today);
+            const [time, setTime] = useState(initialData?.time || now);
+            const [payerId, setPayerId] = useState(initialData?.payerId || 'u1');
+
+            const rate = 0.21;
+            const estimatedTWD = currency === 'JPY' ? Math.round((parseFloat(amount)||0) * rate) : amount;
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave({ 
+                    id: initialData?.id, // Keep ID if editing
+                    title, 
+                    amount: parseFloat(amount), 
+                    currency, 
+                    category, 
+                    date, 
+                    time, 
+                    payerId 
+                });
+            };
+
+            const categoryOptions = [
+                { type: 'food', label: '飲食', icon: 'fa-utensils', color: 'bg-orange-100 text-orange-500' },
+                { type: 'transport', label: '交通', icon: 'fa-bus', color: 'bg-blue-100 text-blue-500' },
+                { type: 'shopping', label: '購物', icon: 'fa-shopping-bag', color: 'bg-pink-100 text-pink-500' },
+                { type: 'ticket', label: '票券', icon: 'fa-ticket-alt', color: 'bg-purple-100 text-purple-500' },
+                { type: 'stay', label: '住宿', icon: 'fa-bed', color: 'bg-indigo-100 text-indigo-500' },
+                { type: 'other', label: '其他', icon: 'fa-ellipsis-h', color: 'bg-gray-100 text-gray-500' },
+            ];
+
+            return (
+                <Modal isOpen={isOpen} onClose={onClose} title={initialData ? "編輯支出" : "新增一筆支出"}>
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div className="relative">
+                             <div className="flex items-center gap-2 mb-2">
+                                <button type="button" onClick={() => setCurrency('JPY')} className={`px-3 py-1 rounded-full text-xs font-bold ${currency === 'JPY' ? 'bg-primary text-white' : 'bg-gray-100 text-text-muted'}`}>JPY ¥</button>
+                                <button type="button" onClick={() => setCurrency('TWD')} className={`px-3 py-1 rounded-full text-xs font-bold ${currency === 'TWD' ? 'bg-primary text-white' : 'bg-gray-100 text-text-muted'}`}>TWD $</button>
+                            </div>
+                            <div className="relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted text-xl"><i className={`fas ${currency === 'JPY' ? 'fa-yen-sign' : 'fa-dollar-sign'}`}></i></div>
+                                <input type="number" inputMode="decimal" placeholder="0" className="w-full bg-gray-50 rounded-2xl py-4 pl-10 pr-4 text-4xl font-extrabold text-text-main text-right outline-none focus:ring-4 focus:ring-primary/20" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus required />
+                            </div>
+                            {amount && currency === 'JPY' && <p className="text-right text-xs font-bold text-text-muted mt-1 mr-2">≈ TWD {estimatedTWD.toLocaleString()}</p>}
+                        </div>
+
+                        {/* Category Selector */}
+                        <div>
+                            <label className="block text-xs font-bold text-text-muted mb-2 ml-1">類別</label>
+                            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                                {categoryOptions.map((opt) => (
+                                    <button key={opt.type} type="button" onClick={() => setCategory(opt.type)} className={`flex flex-col items-center flex-shrink-0 min-w-[64px] gap-1 transition-all ${category === opt.type ? 'scale-105 opacity-100' : 'opacity-50 hover:opacity-100'}`}>
+                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg shadow-sm ${opt.color} ${category === opt.type ? 'ring-2 ring-offset-1 ring-current' : ''}`}>
+                                            <i className={`fas ${opt.icon}`}></i>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-text-main">{opt.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <Input label="消費內容" value={title} onChange={(e) => setTitle(e.target.value)} required />
+                        
+                        <div className="flex gap-3">
+                            <Input type="date" label="日期" value={date} onChange={(e) => setDate(e.target.value)} required />
+                            <Input type="time" label="時間" value={time} onChange={(e) => setTime(e.target.value)} required />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-text-muted mb-2 ml-1">誰先付錢？</label>
+                            <div className="flex gap-2">
+                                {MEMBERS.map((m) => (
+                                    <button key={m.id} type="button" onClick={() => setPayerId(m.id)} className={`flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all ${payerId === m.id ? 'bg-primary/10 border-primary text-primary-dark' : 'bg-white border-transparent hover:bg-gray-50 text-text-muted'}`}>
+                                        <div className="w-5 h-5 rounded-full" style={{ backgroundColor: m.color }} />
+                                        <span className="text-sm font-bold">{m.name}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                            {initialData && (
+                                <button type="button" onClick={() => onDelete(initialData.id)} className="w-12 h-12 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center flex-shrink-0">
+                                    <i className="fas fa-trash"></i>
+                                </button>
+                            )}
+                            <Button type="submit" fullWidth variant="primary">儲存</Button>
+                        </div>
+                    </form>
+                </Modal>
+            );
+        };
+
+        // --- Feature: Members ---
+        const MembersPage = () => {
+             const [copied, setCopied] = useState(false);
+             const handleCopy = () => { setCopied(true); setTimeout(() => setCopied(false), 2000); };
+             
+             return (
+                 <div className="space-y-6 pb-24">
+                     <div className="px-2"><h2 className="text-2xl font-extrabold text-text-main">旅伴清單</h2><p className="text-xs text-text-muted">共 {MEMBERS.length} 位成員加入</p></div>
+                     <Card className="bg-gradient-to-br from-primary to-primary-dark text-white border-none relative overflow-hidden group">
+                        <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
+                        <div className="relative z-10 space-y-4">
+                            <div className="flex justify-between items-start"><div><h3 className="font-bold text-lg">邀請朋友加入</h3><p className="text-xs opacity-80">分享連結，一起編輯！</p></div><div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm"><i className="fas fa-user-plus"></i></div></div>
+                            <div className="bg-black/20 rounded-xl p-1 pl-3 flex items-center justify-between backdrop-blur-sm border border-white/10">
+                                <span className="text-xs font-mono opacity-80 truncate mr-2">trip-planner.app/join/okinawa</span>
+                                <Button size="sm" variant="secondary" className="rounded-lg shadow-none py-1.5" onClick={handleCopy}>{copied ? '已複製' : '複製'}</Button>
+                            </div>
+                        </div>
+                     </Card>
+                     <div className="grid grid-cols-2 gap-4">
+                        {MEMBERS.map((m, i) => (
+                            <Card key={m.id} padding="md" variant="flat" className="flex flex-col items-center justify-center text-center space-y-2 relative bg-white">
+                                {i === 0 && <div className="absolute top-2 right-2 text-yellow-400 transform rotate-12 filter drop-shadow-sm"><i className="fas fa-crown"></i></div>}
+                                <div className="w-16 h-16 rounded-full border-4 border-white shadow-soft-sm flex items-center justify-center text-2xl text-white font-bold mb-1" style={{ backgroundColor: m.color }}>{m.name[0]}</div>
+                                <div><h4 className="font-bold text-text-main">{m.name}</h4><p className="text-[10px] text-text-muted font-bold uppercase tracking-wider">{i === 0 ? 'Organizer' : 'Traveler'}</p></div>
+                            </Card>
+                        ))}
+                        
+                        {/* 虛線新增格 (佔位符) */}
+                        <button 
+                            onClick={handleCopy}
+                            className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 min-h-[140px] text-primary hover:bg-primary/10 hover:border-primary transition-all active:scale-95"
+                        >
+                            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm mb-2 text-primary">
+                                <i className="fas fa-share-alt"></i>
+                            </div>
+                            <span className="text-xs font-bold">邀請更多人</span>
+                        </button>
+                     </div>
+                 </div>
+             )
+        };
+
+        // --- App Shell ---
+        const App = () => {
+            const [currentTab, setCurrentTab] = useState('schedule');
+            const renderPage = () => {
+                switch(currentTab) {
+                    case 'schedule': return <SchedulePage />;
+                    case 'bookings': return <BookingsPage />;
+                    case 'expense': return <ExpensePage />;
+                    case 'planning': return <PlanningPage />;
+                    case 'members': return <MembersPage />;
+                    default: return <SchedulePage />;
+                }
+            };
+            
+            return (
+                <div className="flex flex-col min-h-screen max-w-md mx-auto bg-bg shadow-2xl min-[450px]:border-x min-[450px]:border-primary/10">
+                    <header className="sticky top-0 z-40 px-6 py-5 shadow-sm flex justify-between items-center relative overflow-hidden">
+                        {/* 背景圖片層 */}
+                        <div className="absolute inset-0 z-0">
+                            <img 
+                                src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" 
+                                alt="Okinawa Beach" 
+                                className="w-full h-full object-cover"
+                            />
+                            {/* 半透明白色遮罩，讓文字更清楚 */}
+                            <div className="absolute inset-0 bg-white/60 backdrop-blur-[3px]"></div>
+                        </div>
+
+                        {/* 內容層 (z-10 確保浮在背景上) */}
+                        <h1 className="relative z-10 text-xl font-bold text-primary-dark tracking-wider flex items-center gap-2 text-shadow-sm">
+                            <span className="text-3xl filter drop-shadow-md hover:scale-110 transition-transform cursor-default">🌺</span> 
+                            <span>沖繩旅行(二沖班)</span>
+                        </h1>
+                        
+                        <div className="relative z-10 flex items-center gap-3">
+                            {/* 新增：快速邀請按鈕 */}
+                            <button 
+                                onClick={() => setCurrentTab('members')}
+                                className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-primary-dark border-2 border-white shadow-soft-sm hover:scale-105 transition-transform backdrop-blur-sm active:scale-95"
+                                title="邀請旅伴"
+                            >
+                                <i className="fas fa-user-plus text-xs"></i>
+                            </button>
+
+                            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white border-2 border-white shadow-soft-sm text-xs font-bold cursor-pointer hover:scale-105 transition-transform backdrop-blur-sm shadow-md">
+                                ME
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 p-4 pb-24 overflow-y-auto no-scrollbar">{renderPage()}</main>
+                    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-bg-paper pb-[env(safe-area-inset-bottom)] shadow-nav rounded-t-2xl border-t border-primary/10 max-w-md mx-auto">
+                        <div className="flex justify-around items-center h-16 px-1">
+                            {[
+                                { id: 'schedule', icon: 'fa-map-marked-alt', label: '行程' },
+                                { id: 'bookings', icon: 'fa-ticket-alt', label: '預訂' },
+                                { id: 'expense', icon: 'fa-wallet', label: '記帳' },
+                                { id: 'planning', icon: 'fa-clipboard-check', label: '準備' },
+                                { id: 'members', icon: 'fa-users', label: '成員' },
+                            ].map(item => (
+                                <button key={item.id} onClick={() => setCurrentTab(item.id)} className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all ${currentTab === item.id ? 'text-primary-dark -translate-y-1' : 'text-text-muted hover:text-primary'} active:scale-95`}>
+                                    <div className={`flex items-center justify-center rounded-2xl transition-all ${currentTab === item.id ? 'bg-primary/20 p-2 shadow-sm' : 'p-1'}`}>
+                                        <i className={`fas ${item.icon} text-lg ${currentTab === item.id ? 'animate-bounce-slight' : ''}`}></i>
+                                    </div>
+                                    <span className="text-[10px] font-bold tracking-wide">{item.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </nav>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
